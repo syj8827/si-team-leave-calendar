@@ -1,5 +1,7 @@
 [build]
-  publish = "."
+  # public/ 만 공개한다. 예전에 publish = "." 이라 함수 소스·package.json·테스트까지
+  # 정적으로 그대로 서빙됐다(레포를 비공개로 돌려도 소스만 공개로 남는 상태였다).
+  publish = "public"
   # 함수가 @netlify/blobs 를 찾을 수 있게 의존성 설치를 명시한다
   command = "npm install"
 
@@ -7,9 +9,15 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# 팀즈 탭은 iframe 이라 임베드를 막으면 안 된다. 검색 노출만 차단.
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Robots-Tag = "noindex, nofollow"
+    # script-src 에 'unsafe-inline' 이 없다 — 스크립트를 app.js 로 빼놓은 이유다.
+    # 저장된 값에 <img onerror=...> 같은 게 섞여도 브라우저가 실행을 막는다(출력 이스케이프의 2차 방어).
+    # style-src 에만 'unsafe-inline' 을 두는 이유: 칩 색을 style="--c:..." 로 넘긴다.
+    # frame-ancestors 로 팀즈에서만 임베드되게 한다.
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com"
+    X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
+    X-Robots-Tag = "noindex, nofollow"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"

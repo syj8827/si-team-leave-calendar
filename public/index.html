@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SI팀 휴가</title>
+<style>
+/* 나눔스퀘어라운드 — 네이버 나눔글꼴 (상업 사용·재배포 허용). 한글 2,350자 + 영문 94자.
+   로컬에 설치돼 있으면 그걸 쓰고, 없으면 함께 담긴 woff2 를 받는다. */
+@font-face{
+  font-family:"NanumSquareRound"; font-style:normal; font-weight:400; font-display:swap;
+  src:local("NanumSquareRoundR"), url("fonts/NanumSquareRoundR.woff2") format("woff2");
+}
+@font-face{
+  font-family:"NanumSquareRound"; font-style:normal; font-weight:700; font-display:swap;
+  src:local("NanumSquareRoundB"), url("fonts/NanumSquareRoundB.woff2") format("woff2");
+}
+@font-face{
+  font-family:"NanumSquareRound"; font-style:normal; font-weight:800; font-display:swap;
+  src:local("NanumSquareRoundEB"), url("fonts/NanumSquareRoundEB.woff2") format("woff2");
+}
+
+/* ─────────────────────────────────────────────────────────────
+   읽는 게 1순위. 글자가 놓이는 면은 전부 불투명 흰 타일이고,
+   배경(Reactive Grid)은 타일 사이 여백에서만 보인다.
+   상시 움직이는 것은 배경 하나뿐 — 나머지 모션은 누를 때만 한 번씩 일어난다.
+   색은 전부 WCAG AA(4.5:1) 이상으로 실측해 맞췄다.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --bg:#F4FAF8; --tile:#FFFFFF; --sink:#EDF4F1; --pad:#EFF5F3;
+  --ink:#16211E; --ink2:#5C6B66; --ink3:#5F6F69; --line:#DBE7E2;
+  --accent:#0A7A63; --warn:#B22B54;
+  --kr:"NanumSquareRound","Malgun Gothic","Apple SD Gothic Neo","Segoe UI",system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --spring:cubic-bezier(.34,1.56,.64,1);
+  --h:118px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--kr);font-size:14px;
+  -webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word}
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:
+  radial-gradient(680px 460px at 14% 8%, #D5F2E8 0%, transparent 66%),
+  radial-gradient(620px 420px at 90% 88%, #E6F4D8 0%, transparent 66%),
+  var(--bg)}
+#bg{position:fixed;inset:0;z-index:-1;width:100%;height:100%;display:block}
+
+#burst{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+#burst span{position:absolute;font-size:21px;line-height:1;will-change:transform,opacity;
+  animation:fly .95s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fly{
+  0%{transform:translate(-50%,-50%) scale(.4);opacity:0}
+  16%{transform:translate(-50%,-50%) scale(1.12);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy) + 96px)) scale(.9) rotate(var(--rot));opacity:0}
+}
+
+.wrap{max-width:1300px;margin:0 auto;padding:28px 24px 48px}
+.lbl{font-size:10.5px;letter-spacing:.13em;color:var(--ink2)}
+:where(button,[tabindex],input):focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+
+/* ── 헤더 ── */
+.head{display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:clamp(54px,7.4vw,96px);font-weight:800;line-height:.88;
+  letter-spacing:-.018em;font-variant-numeric:lining-nums tabular-nums;display:flex;overflow:hidden}
+h1 i{font-style:normal;display:inline-block;animation:rise .55s var(--ease) both}
+h1 i.p{color:var(--accent)}
+@keyframes rise{from{transform:translateY(108%)}to{transform:translateY(0)}}
+
+.sum{display:flex;flex-direction:column;gap:9px;max-width:540px}
+.sum .v{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;font-weight:700;color:var(--ink2)}
+.sum .v .chip{font-size:13px}
+
+.nav{display:flex;gap:5px;align-items:center}
+.nav button{font:inherit;font-size:11.5px;letter-spacing:.04em;
+  background:#fff;border:1px solid var(--line);color:var(--ink2);border-radius:999px;
+  padding:9px 16px;cursor:pointer;transition:transform .2s var(--spring),background .16s,color .16s}
+.nav button:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.nav button:active{transform:scale(.94)}
+.nav .cta{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.nav .cta.on{background:var(--ink);border-color:var(--ink)}
+
+/* ── 등록 폼 ── */
+.add{overflow:hidden;max-height:0;transition:max-height .4s var(--ease),margin .4s var(--ease)}
+.add.on{max-height:420px;margin-bottom:20px}
+.fields{display:grid;grid-template-columns:1.1fr 1fr 1fr 1.4fr auto;gap:12px;align-items:end;
+  background:var(--tile);border:1px solid var(--line);border-radius:22px;padding:20px 22px}
+.f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.f input{font:inherit;border:1px solid var(--line);background:#fff;
+  border-radius:999px;padding:11px 16px;color:var(--ink);width:100%;transition:border-color .16s}
+.f input:focus{border-color:var(--accent)}
+.save{font:inherit;font-weight:700;background:var(--accent);color:#fff;border:0;border-radius:999px;
+  padding:12px 26px;cursor:pointer;white-space:nowrap;transition:transform .2s var(--spring),filter .16s}
+.save:hover{filter:brightness(1.1)}
+.save:active{transform:scale(.93)}
+.save[disabled]{opacity:.55;cursor:default}
+.msg{margin-top:11px;font-size:12.5px;line-height:1.6;display:none;color:var(--ink2)}
+.msg.on{display:block}
+.msg.bad{color:var(--warn);font-weight:700}
+.undo{font:inherit;font-size:11.5px;font-weight:700;border:1px solid var(--accent);background:#fff;
+  color:var(--accent);border-radius:999px;padding:4px 13px;cursor:pointer}
+.undo:hover{background:var(--accent);color:#fff}
+
+/* ── 달력 ── */
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:9px}
+.wk div{padding-left:15px;color:var(--ink2)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+.d{background:var(--tile);border-radius:16px;min-height:var(--h);padding:11px 11px 13px;
+  display:flex;flex-direction:column;gap:8px;
+  box-shadow:0 2px 8px -4px #16211e14;
+  animation:pop .4s var(--ease) both;animation-delay:calc(var(--i) * 9ms);
+  transition:transform .22s var(--ease),box-shadow .22s var(--ease)}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.d.off{background:var(--sink);box-shadow:none}
+.d.pad{background:var(--pad);box-shadow:none}
+.d[data-date]{cursor:pointer}
+.d[data-date]:hover{transform:translateY(-3px);box-shadow:0 10px 20px -10px #0a7a6340;z-index:2;position:relative}
+.d.now{box-shadow:inset 0 0 0 2px var(--accent),0 2px 8px -4px #16211e14}
+.d.burst{position:relative}
+.d.burst::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  border:2px solid var(--accent);animation:ring .7s var(--ease) both}
+@keyframes ring{0%{transform:scale(.94);opacity:.9}100%{transform:scale(1.1);opacity:0}}
+
+.dn{display:flex;align-items:center;gap:7px;min-height:24px;flex-wrap:wrap;row-gap:2px}
+.dn b{font-size:20px;font-weight:700;line-height:1;letter-spacing:-.01em;
+  font-variant-numeric:lining-nums tabular-nums}
+.d.off .dn b{color:var(--ink2)}
+.d.pad .dn b{color:var(--ink3);font-weight:400}
+.d.now .dn b{color:var(--accent)}
+.dn .hl{font-size:11px;font-weight:700;color:var(--warn);margin-left:auto}
+.dn .ct{font-size:10.5px;font-weight:700;color:var(--ink2);margin-left:auto}
+.dn .hl ~ .ct{margin-left:7px}
+
+/* ── 이름 칩 ── */
+.who{display:flex;flex-direction:column;gap:4px}
+.chip{display:flex;align-items:center;gap:5px;padding:4px 9px 5px 8px;border-radius:999px;
+  background:var(--cb);color:var(--c);font-family:inherit;font-size:12.5px;font-weight:700;
+  letter-spacing:-.015em;border:0;text-align:left;
+  white-space:nowrap;overflow:hidden;transition:transform .18s var(--spring)}
+.chip::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--cd);flex:0 0 auto}
+.chip .nm{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.chip i{font-style:normal;font-size:10.5px;font-weight:400;opacity:.85;
+  flex:0 4 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+button.chip{cursor:pointer}
+button.chip:hover{transform:scale(1.05)}
+button.chip:active{transform:scale(.96)}
+.chip.new{animation:popin .5s var(--spring) both}
+@keyframes popin{0%{transform:scale(.55);opacity:0}62%{transform:scale(1.1);opacity:1}100%{transform:scale(1)}}
+.chip.gone{animation:popout .28s var(--ease) both}
+@keyframes popout{to{transform:scale(.5);opacity:0}}
+
+.foot{margin-top:18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.foot span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2)}
+.err,.note{margin-top:14px;padding:11px 16px;border-radius:0 14px 14px 0;font-size:12.5px;line-height:1.6}
+.err{border-left:3px solid var(--warn);background:#fdeff2;color:#8a1f42}
+.note{border-left:3px solid var(--ink2);background:#eef4f2;color:#3f4c48}
+.err:empty,.note:empty{display:none}
+
+@media (max-width:860px){
+  :root{--h:78px}
+  .wrap{padding:16px 11px 32px}
+  .fields{grid-template-columns:1fr 1fr;gap:10px;border-radius:18px}
+  .fields .f:nth-child(4),.save{grid-column:1/-1}
+  .wk,.grid{gap:6px}
+  .wk div{padding-left:8px;font-size:9.5px;letter-spacing:.04em}
+  .d{padding:7px 6px 9px;gap:5px;border-radius:12px}
+  .dn b{font-size:16px}
+  .chip{font-size:11.5px;padding:3px 8px 4px 6px;gap:4px}
+  .chip i{display:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::after,*::before{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div id="burst" aria-hidden="true"></div>
+
+<div class="wrap">
+  <header class="head">
+    <h1 id="label"></h1>
+    <div class="sum">
+      <div class="lbl" id="k">—</div>
+      <div class="v" id="v" aria-live="polite">—</div>
+    </div>
+    <nav class="nav" aria-label="달 이동">
+      <button id="prev" type="button">◄ 이전</button>
+      <button id="today" type="button">오늘</button>
+      <button id="next" type="button">다음 ►</button>
+      <button id="toggle" type="button" class="cta" aria-expanded="false" aria-controls="add">일정 등록</button>
+    </nav>
+  </header>
+
+  <div class="add" id="add">
+    <div class="fields">
+      <div class="f"><label class="lbl" for="f-name">이름</label>
+        <input id="f-name" list="names" autocomplete="off" placeholder="이름" maxlength="20"></div>
+      <datalist id="names"></datalist>
+      <div class="f"><label class="lbl" for="f-from">시작</label><input id="f-from" type="date"></div>
+      <div class="f"><label class="lbl" for="f-to">종료</label><input id="f-to" type="date"></div>
+      <div class="f"><label class="lbl" for="f-note">메모 (생략 가능)</label>
+        <input id="f-note" placeholder="여름휴가" maxlength="40"></div>
+      <button class="save" id="f-save" type="button">등록</button>
+    </div>
+    <div class="msg" id="f-msg" aria-live="polite"></div>
+  </div>
+
+  <div class="wk" aria-hidden="true">
+    <div class="lbl">일</div><div class="lbl">월</div><div class="lbl">화</div><div class="lbl">수</div>
+    <div class="lbl">목</div><div class="lbl">금</div><div class="lbl">토</div>
+  </div>
+  <div class="grid" id="grid"></div>
+
+  <div id="err" aria-live="polite"></div>
+  <div class="foot"><span id="src">—</span><span>GG SI TEAM</span></div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
