@@ -417,19 +417,26 @@ window.selftest = function selftest(){
 
   /* XSS — 저장된 값이 그대로 실행되지 않아야 한다 */
   (() => {
-    const keep = leaves, keepLive = live;
+    const keep = leaves, keepLive = live, keepCur = new Date(cur);
     window.__pwn = 0;
+    /* 보고 있는 달과 무관하게 검사되도록 날짜를 맞춰 둔다 — 예전엔 다른 달을 보고 있으면
+       칩이 안 그려져 검사가 null 로 터졌다(가장 중요한 검사가 달에 따라 깨지면 안 된다) */
+    const d0 = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+    const weekday = (() => { const x = new Date(d0); while (isOff(x)) x.setDate(x.getDate()+1); return iso(x); })();
+    cur = d0;
     leaves = [
-      { id:"x1", name:'<img src=x onerror=__pwn++>'.slice(0,20), start:"2026-08-05", end:"2026-08-05", note:"" },
-      { id:"x2", name:"홍길동", start:"2026-08-06", end:"2026-08-06", note:'<img src=x onerror=__pwn++>' },
-      { id:"x3", name:"김철수", start:"2026-08-07", end:"2026-08-07", note:'" onmouseover="__pwn++" x="' }
+      { id:"x1", name:'<img src=x onerror=__pwn++>'.slice(0,20), start:weekday, end:weekday, note:"" },
+      { id:"x2", name:"홍길동", start:weekday, end:weekday, note:'<img src=x onerror=__pwn++>' },
+      { id:"x3", name:"김철수", start:weekday, end:weekday, note:'" onmouseover="__pwn++" x="' }
     ];
     live = true; render();
+    const nm = document.querySelector("#grid .nm");
+    ok(!!nm, "검사용 칩이 그려짐 (" + weekday + ")");
     ok(document.querySelectorAll("#grid img, #grid svg, #grid script").length === 0, "주입 태그가 생성되지 않음");
     ok(!document.querySelector("#grid .chip[onmouseover]"), "속성 탈출로 이벤트 핸들러가 안 붙음");
     ok(window.__pwn === 0, "페이로드 미실행 (실행 " + window.__pwn + "회)");
-    ok(document.querySelector("#grid .nm").textContent.includes("<img"), "위험 문자는 글자로 표시됨");
-    leaves = keep; live = keepLive; render();
+    ok(!!nm && nm.textContent.includes("<img"), "위험 문자는 글자로 표시됨");
+    leaves = keep; live = keepLive; cur = keepCur; render();
   })();
 
   /* 월 표시 — Jua + 두둥실·쫀득·색파동.
