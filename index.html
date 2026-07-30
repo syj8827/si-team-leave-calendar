@@ -135,12 +135,13 @@ h1 i.p{color:var(--accent)}
 
 /* ── 이름 칩 ── */
 .who{display:flex;flex-direction:column;gap:4px}
-.chip{display:flex;align-items:center;gap:6px;padding:4px 11px 5px 9px;border-radius:999px;
-  background:var(--cb);color:var(--c);font-size:13px;font-weight:700;letter-spacing:-.01em;
-  transition:transform .18s var(--spring)}
-.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--cd);flex:0 0 auto}
+.chip{display:flex;align-items:center;gap:5px;padding:4px 9px 5px 8px;border-radius:999px;
+  background:var(--cb);color:var(--c);font-size:12.5px;font-weight:700;letter-spacing:-.015em;
+  white-space:nowrap;overflow:hidden;transition:transform .18s var(--spring)}
+.chip::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--cd);flex:0 0 auto}
+.chip .nm{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .chip i{font-style:normal;font-size:10.5px;font-weight:500;opacity:.75;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  flex:0 4 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .chip[data-id]{cursor:pointer}
 .chip[data-id]:hover{transform:scale(1.05)}
 .chip.new{animation:popin .5s var(--spring) both}
@@ -254,7 +255,7 @@ function chipHtml(p, fresh, plain){
     + (del ? " — 눌러서 삭제" : "");
   return `<span class="chip${fresh ? " new" : ""}" style="--c:${t.c};--cb:${t.cb};--cd:${t.cd}"`
     + `${del ? ` data-id="${p.id}"` : ""} title="${tip}">`
-    + `${p.name}${p.note ? `<i>${p.note}</i>` : ""}</span>`;
+    + `<span class="nm">${p.name}</span>${p.note ? `<i>${p.note}</i>` : ""}</span>`;
 }
 
 /* ════════ 렌더 ════════ */
@@ -599,6 +600,17 @@ function selftest(){
      "이모지마다 퍼짐 방향 지정됨");
   ok(getComputedStyle(layer).pointerEvents === "none", "버스트 레이어가 클릭을 막지 않음");
   layer.innerHTML = "";
+
+  /* 칩 줄바꿈 */
+  (() => {
+    const chips = [...document.querySelectorAll("#grid .chip")];
+    if (!chips.length) { ok(true, "표시할 칩 없음 — 줄바꿈 검사 생략"); return; }
+    const tall = chips.filter(c => c.getBoundingClientRect().height > 26);
+    ok(tall.length === 0, `칩이 두 줄로 접히지 않음 (초과 ${tall.length}개)`);
+    ok(chips.every(c => getComputedStyle(c).whiteSpace === "nowrap"), "칩 줄바꿈 금지 적용");
+    const over = chips.filter(c => c.scrollWidth > c.clientWidth + 1);
+    ok(true, `폭 넘쳐 말줄임 처리된 칩 ${over.length}개 (접히지 않고 잘림)`);
+  })();
 
   /* 삭제 경로 */
   ok(leaves.every(l => l.id), "모든 레코드에 id 가 있다 (없으면 삭제 불가)");
