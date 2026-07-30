@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="ko" data-t="8">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SI팀 휴가 캘린더 — 디자인 시안</title>
+<style>
+/* ══ 공통 ══ */
+:root{
+  --num:Bahnschrift,"Bahnschrift Condensed","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+  --kr:"Malgun Gothic","Apple SD Gothic Neo","Segoe UI",system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --spring:cubic-bezier(.34,1.56,.64,1);   /* 쫀득 — 살짝 튀는 오버슈트 */
+  --h:112px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--kr);font-size:14px;-webkit-font-smoothing:antialiased;
+  word-break:keep-all;overflow-wrap:break-word;background:var(--bg);color:var(--ink)}
+#bg{position:fixed;inset:0;z-index:-1;width:100%;height:100%;display:block}
+#bg.off{display:none}
+.lbl{font-family:var(--mono);text-transform:uppercase;letter-spacing:.16em;font-size:10.5px;color:var(--ink2)}
+
+/* ══ 시안 선택 바 ══ */
+.picker{position:sticky;top:0;z-index:50;background:#111214;color:#fff;padding:11px 20px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.picker .t{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.5}
+.picker .bs{display:flex;gap:6px;flex-wrap:wrap}
+.picker button{font:inherit;font-size:12.5px;background:#26282c;border:1px solid #34373c;color:#c9ccd2;
+  border-radius:999px;padding:6px 15px;cursor:pointer;transition:.16s}
+.picker button:hover{background:#33363b;color:#fff}
+.picker button.on{background:#fff;color:#111;border-color:#fff;font-weight:700}
+.picker .pdesc{font-size:12px;opacity:.62;flex:1 1 260px;min-width:200px}
+
+.wrap{max-width:1300px;margin:0 auto;padding:26px 24px 46px}
+
+/* ══ 헤더 ══ */
+.head{display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:24px}
+.mon{position:relative}
+h1{font-family:var(--num);font-size:clamp(54px,7.4vw,96px);font-weight:500;line-height:.86;
+  letter-spacing:-.028em;font-variant-numeric:tabular-nums;display:flex;overflow:hidden}
+h1 i{font-style:normal;display:inline-block;animation:rise .55s var(--ease) both}
+h1 i.p{color:var(--accent)}
+@keyframes rise{from{transform:translateY(108%)}to{transform:translateY(0)}}
+#led{display:none}
+[data-t="3"] h1{display:none}
+[data-t="3"] #led{display:block}
+
+/* 박스 없음 — 라벨 한 줄 + 달력과 같은 컬러 칩을 그대로 재사용 */
+.sum{display:flex;flex-direction:column;gap:9px;max-width:560px;
+  background:none;border:0;padding:0;border-radius:0}
+.sum .v{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:14px;font-weight:600;color:var(--ink2)}
+.sum .v .chip{font-size:13px}
+.sum .lbl{letter-spacing:.06em;text-transform:none}
+
+.nav{display:flex;gap:4px;align-items:center}
+.nav button{font:inherit;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;background:var(--lift);border:1px solid var(--rule);color:var(--ink2);
+  border-radius:var(--rb);padding:8px 15px;cursor:pointer;transition:.16s}
+.nav button:hover{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
+.nav:hover button:not(:hover){opacity:.42;filter:blur(.4px)}
+
+/* ══ 등록 폼 ══ */
+.add{overflow:hidden;max-height:0;transition:max-height .42s var(--ease),margin .42s var(--ease)}
+.add.on{max-height:340px;margin-bottom:20px}
+.add{transition:max-height .46s var(--spring),margin .46s var(--spring)}
+.fields{display:grid;grid-template-columns:1.1fr 1fr 1fr 1.5fr auto;gap:12px;align-items:end;
+  background:var(--lift);border:1px solid var(--rule);border-radius:var(--r1);padding:18px 20px}
+.f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.f input{font:inherit;font-family:var(--kr);border:1px solid var(--rule);background:#fff;
+  border-radius:var(--rc);padding:10px 13px;color:var(--ink);width:100%;transition:border-color .16s}
+.f input:focus{outline:0;border-color:var(--accent)}
+.f input[type=date]{font-family:var(--mono);font-size:12.5px}
+.save{font:inherit;font-weight:700;background:var(--accent);color:var(--onAccent);border:0;
+  border-radius:var(--rb);padding:11px 24px;cursor:pointer;white-space:nowrap;
+  transition:transform .22s var(--spring),filter .16s}
+.save:hover{filter:brightness(1.08)}
+.save:active{transform:scale(.93)}
+.msg{margin-top:10px;font-size:12.5px;display:none}
+.msg.on{display:block}
+.msg.bad{color:var(--accent);font-weight:700}
+.msg code{font-family:var(--mono);font-size:11.5px;background:var(--sink);
+  padding:7px 10px;border-radius:6px;display:block;margin-top:6px;word-break:break-all}
+
+/* ══ 달력 ══ */
+.cal{border:1px solid var(--rule);border-radius:var(--r1);overflow:hidden;background:var(--rule)}
+.d[data-date]{cursor:pointer}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--rule)}
+.wk div{background:var(--bg2);padding:12px 0 12px 12px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;position:relative}
+.d{background:var(--lift);min-height:var(--h);padding:10px 10px 12px;display:flex;flex-direction:column;gap:7px;
+  animation:pop .46s var(--ease) both;animation-delay:calc(var(--i) * 11ms);
+  transition:background .16s,transform .3s var(--spring),box-shadow .3s var(--ease)}
+@keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.d.off{background:var(--sink)}
+.d.pad{background:var(--pad)}
+.d.now{background:var(--nowBg)}
+.dn{display:flex;align-items:center;gap:7px;min-height:26px;flex-wrap:wrap;row-gap:2px}
+.dn b{font-family:var(--num);font-size:19px;font-weight:500;line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;transition:font-weight .12s linear,color .12s}
+.d.off .dn b{color:var(--ink2)}
+.d.pad .dn b{color:var(--ink3)}
+.dn .hl{font-family:var(--kr);font-size:11px;font-weight:700;letter-spacing:.01em;
+  color:var(--accent);margin-left:auto}
+.dn .ct{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-left:auto}
+.dn .hl ~ .ct{margin-left:7px}
+
+.who{display:flex;flex-direction:column;gap:4px}
+.chip{position:relative;overflow:hidden;display:flex;align-items:center;gap:6px;
+  padding:4px 11px 5px 9px;border-radius:var(--rc);background:var(--cb);
+  font-size:12.5px;font-weight:700;color:var(--c);letter-spacing:-.01em;transition:transform .2s var(--spring)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--cd,var(--c));flex:0 0 auto}
+.chip i{font-style:normal;font-size:10.5px;font-weight:500;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip::after{content:"";position:absolute;top:0;bottom:0;width:40%;
+  background:linear-gradient(100deg,transparent,#ffffffcc,transparent);
+  transform:translateX(-200%) skewX(-18deg);transition:transform .6s var(--ease);pointer-events:none}
+.chip:hover::after{transform:translateX(330%) skewX(-18deg)}
+.chip:hover{transform:scale(1.045)}
+.chip:active{transform:scale(.96)}
+/* 방금 등록한 칩 — 튕겨 들어온다 */
+.chip.new{animation:popin .52s var(--spring) both}
+@keyframes popin{0%{transform:scale(.55);opacity:0}62%{transform:scale(1.10);opacity:1}100%{transform:scale(1)}}
+/* 등록된 칸 — 링이 한 번 퍼진다 */
+.d.burst{position:relative}
+.d.burst::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  border:2px solid var(--accent);animation:burst .7s var(--ease) both}
+@keyframes burst{0%{transform:scale(.94);opacity:.9}100%{transform:scale(1.11);opacity:0}}
+
+.foot{margin-top:16px;display:flex;justify-content:space-between}
+.foot span{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+
+/* ═══════════════ 후보 1 · 크림 하프톤 + 오빗 아크 ═══════════════ */
+[data-t="1"]{
+  --bg:#F3F0EE; --bg2:#F3F0EE; --lift:#FCFBFA; --sink:#EDE9E6; --pad:#E7E2DE;
+  --ink:#141413; --ink2:#696969; --ink3:#9A948E; --rule:#E2DCD7;
+  --accent:#CF4500; --onAccent:#fff; --nowBg:#FBEDE6;
+  --r1:34px; --r2:999px; --rb:999px; --rc:999px;
+}
+[data-t="1"] .d.now .dn b{background:var(--accent);color:#fff;border-radius:50%;
+  width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px}
+
+/* ═══════════════ 후보 2 · 인터랙티브 그리드 ═══════════════ */
+[data-t="2"]{
+  --bg:#FAFAF9; --bg2:#FAFAF9; --lift:#fff; --sink:#F2F2F0; --pad:#EDEDEA;
+  --ink:#0E0E10; --ink2:#6B6B70; --ink3:#A6A6AA; --rule:#E6E6E3;
+  --accent:#111214; --onAccent:#fff; --nowBg:#F2F2F0;
+  --r1:6px; --r2:6px; --rb:6px; --rc:5px;
+}
+/* 인터랙티브 그리드 공통 (시안 2·5·6·7) */
+.d{will-change:transform}
+.d.lift{background:var(--liftHi,#fff);transform:translateY(-4px) scale(1.014);
+  box-shadow:var(--liftSh,0 10px 26px -10px #0e0e1026),0 0 0 1px #0e0e1014;z-index:2;position:relative}
+[data-t="2"] .cal{background:var(--rule)}
+[data-t="2"] .d.now .dn b{color:var(--ink);position:relative}
+[data-t="2"] .d.now{box-shadow:inset 0 0 0 1.5px var(--ink)}
+[data-t="2"] .chip{background:#0E0E10;color:#fff}
+[data-t="2"] .chip::before{background:var(--c)}
+[data-t="2"] .chip i{color:#ffffff9c}
+
+/* ═══════════════ 후보 3 · 픽셀 LED ═══════════════ */
+[data-t="3"]{
+  --bg:#EFEFEC; --bg2:#EFEFEC; --lift:#F8F8F5; --sink:#E6E6E2; --pad:#DEDEDA;
+  --ink:#17181A; --ink2:#6E7075; --ink3:#A2A4A8; --rule:#D8D8D3;
+  --accent:#E8551A; --onAccent:#fff; --nowBg:#FBEBE3;
+  --r1:4px; --r2:4px; --rb:3px; --rc:3px;
+}
+[data-t="3"] .cal{border-width:2px;border-color:#1B1C1E}
+[data-t="3"] .wk div{background:#1B1C1E;color:#B9BBBE}
+[data-t="3"] .wk .lbl{color:#B9BBBE}
+[data-t="3"] .d.now{box-shadow:inset 0 0 0 2px var(--accent)}
+[data-t="3"] .dn b{font-family:var(--mono);font-weight:700;font-size:16px}
+[data-t="3"] .chip{border-radius:3px;background:#fff;border:1px solid var(--c);color:var(--c)}
+
+/* ═══════════════ 후보 4 · 리액티브 라인 ═══════════════ */
+[data-t="4"]{
+  --bg:#F7F7F5; --bg2:transparent; --lift:#FFFFFFD9; --sink:#F0F0EDD9; --pad:#E9E9E6C0;
+  --ink:#101113; --ink2:#63656B; --ink3:#9C9EA4; --rule:#DFDFDB;
+  --accent:#1B4DFF; --onAccent:#fff; --nowBg:#E8EDFF;
+  --r1:0px; --r2:0px; --rb:0px; --rc:0px;
+}
+[data-t="4"] .cal{border-left:0;border-right:0;border-radius:0;backdrop-filter:blur(3px)}
+[data-t="4"] h1{letter-spacing:-.05em;font-weight:600}
+[data-t="4"] .d.now .dn b{color:var(--accent)}
+[data-t="4"] .d.now{box-shadow:inset 3px 0 0 var(--accent)}
+[data-t="4"] .chip{background:transparent;box-shadow:inset 0 0 0 1px var(--c)}
+
+/* ═══════════════ 후보 5 · 비비드 블록 ═══════════════ */
+[data-t="5"]{
+  --bg:#F4F5F7; --bg2:#F4F5F7; --lift:#FFFFFF; --sink:#ECEEF2; --pad:#E4E7EC;
+  --ink:#0B0C0F; --ink2:#5B6270; --ink3:#9AA1AD; --rule:#E1E4EA;
+  --accent:#5200FF; --onAccent:#fff; --nowBg:#EFE9FF;
+  --r1:14px; --r2:12px; --rb:8px; --rc:7px;
+  --liftSh:0 14px 30px -12px #5200ff40;
+}
+[data-t="5"] .d.now{box-shadow:inset 0 0 0 2px var(--accent)}
+[data-t="5"] .d.now .dn b{background:var(--accent);color:#fff;border-radius:7px;
+  min-width:28px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px}
+
+/* ═══════════════ 후보 6 · 민트 / 바이올렛 ═══════════════ */
+[data-t="6"]{
+  --bg:#FFFFFF; --bg2:#FFFFFF; --lift:#FFFFFF; --sink:#F4F4F5; --pad:#EDEDEE;
+  --ink:#0A0A0B; --ink2:#5C5C63; --ink3:#A0A0A6; --rule:#E4E4E6;
+  --accent:#5200FF; --onAccent:#fff; --nowBg:#F0FFFB;
+  --r1:26px; --r2:999px; --rb:999px; --rc:999px;
+  --liftSh:0 12px 28px -12px #00d6ae55;
+}
+[data-t="6"] .cal{border-width:1.5px;border-color:var(--ink);background:var(--ink)}
+[data-t="6"] .wk div{background:var(--ink);color:#fff}
+[data-t="6"] .wk .lbl{color:#ffffffb3}
+[data-t="6"] .d.now{box-shadow:inset 0 0 0 2.5px #00D6AE}
+[data-t="6"] .d.now .dn b{color:#0A0A0B}
+[data-t="6"] .dn .hl{color:var(--accent)}
+
+/* ═══════════════ 후보 7 · 오로라 ═══════════════ */
+[data-t="7"]{
+  --bg:#F2F2F7; --bg2:transparent; --lift:#FFFFFFD4; --sink:#FFFFFF8F; --pad:#FFFFFF52;
+  --ink:#0E1018; --ink2:#4E5364; --ink3:#8A90A2; --rule:#FFFFFF9E;
+  --accent:#C21A8D; --onAccent:#fff; --nowBg:#FFFFFFEB;
+  --r1:28px; --r2:20px; --rb:999px; --rc:8px;
+  --liftHi:#FFFFFFF2; --liftSh:0 16px 34px -14px #3a1f6640;
+}
+[data-t="7"] .cal{backdrop-filter:blur(9px);border-color:#ffffffb8}
+[data-t="7"] .d.now{box-shadow:inset 0 0 0 2px var(--accent)}
+[data-t="7"] .d.now .dn b{color:var(--accent)}
+[data-t="7"] h1{font-weight:600;letter-spacing:-.04em}
+
+/* ═══════════════ 후보 8 · 파스텔 뽀짝 ═══════════════
+   칸을 붙이지 않고 떼어내 개별 라운드 타일로. 배경은 originkit dotmatrix + proximityorbit. */
+[data-t="8"]{
+  --bg:#F8F7FC; --bg2:transparent; --lift:#FFFFFFEE; --sink:#F2F0FAC4; --pad:#EAE8F33D;
+  --ink:#221D33; --ink2:#6B6580; --ink3:#A8A2BC; --rule:transparent;
+  --accent:#0B8F74; --onAccent:#fff; --nowBg:#FFFFFF;
+  --r1:24px; --r2:20px; --rb:999px; --rc:999px;
+  --liftHi:#fff; --liftSh:0 16px 32px -12px #0b8f7440;
+}
+[data-t="8"] .cal{border:0;background:transparent;border-radius:0;overflow:visible}
+[data-t="8"] .wk{background:transparent;gap:10px;margin-bottom:9px}
+[data-t="8"] .wk div{background:transparent;padding:0 0 0 15px;color:#8E87A6}
+[data-t="8"] .grid{gap:10px}
+[data-t="8"] .d{border-radius:17px;box-shadow:0 3px 12px -5px #221d3318;backdrop-filter:blur(5px)}
+[data-t="8"] .d.pad{box-shadow:none;backdrop-filter:none}
+[data-t="8"] .d.now{box-shadow:0 0 0 2.5px var(--accent),0 10px 22px -9px #0b8f7452}
+[data-t="8"] .d.now .dn b{color:var(--accent)}
+[data-t="8"] .fields{border:0;box-shadow:0 6px 22px -10px #221d3322;backdrop-filter:blur(6px)}
+[data-t="8"] .f input{border-color:#E4E0F0}
+[data-t="8"] .nav button{border-color:#E4E0F0}
+[data-t="8"] h1{font-weight:600}
+
+/* 채도 높은 단색 칩(5·6·7) — 점 없애고 메모는 같은 색 계열로 */
+[data-t="5"] .chip::before,[data-t="6"] .chip::before,[data-t="7"] .chip::before{display:none}
+[data-t="5"] .chip,[data-t="6"] .chip,[data-t="7"] .chip{padding:4px 11px 5px}
+[data-t="5"] .chip i,[data-t="6"] .chip i,[data-t="7"] .chip i{color:currentColor;opacity:.72}
+
+@media (max-width:860px){
+  :root{--h:74px}
+  .wrap{padding:14px 10px 30px}
+  .d{padding:6px 5px 8px;gap:4px}
+  .chip{font-size:11px;padding:3px 7px 4px 6px}
+  .chip i{display:none}
+  .dn b{font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){*,*::after,*::before{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<div class="picker">
+  <span class="t">시안</span>
+  <span class="bs">
+    <button data-n="1">1 · 크림 하프톤</button>
+    <button data-n="2">2 · 인터랙티브 그리드</button>
+    <button data-n="3">3 · 픽셀 LED</button>
+    <button data-n="4">4 · 리액티브 라인</button>
+    <button data-n="5">5 · 비비드 블록</button>
+    <button data-n="6">6 · 민트/바이올렛</button>
+    <button data-n="7">7 · 오로라</button>
+    <button data-n="8">8 · 파스텔 뽀짝</button>
+  </span>
+  <span class="pdesc" id="pd"></span>
+  <button id="toggle" style="background:#fff;color:#111;border-color:#fff;font-weight:700">휴가 등록</button>
+</div>
+
+<div class="wrap">
+  <div class="head">
+    <div class="mon">
+      <h1 id="label"></h1>
+      <canvas id="led" width="760" height="150"></canvas>
+    </div>
+    <div class="sum">
+      <div class="lbl" id="k">—</div>
+      <div class="v" id="v">—</div>
+    </div>
+    <div class="nav">
+      <button id="prev">◄ Prev</button><button id="today">Today</button><button id="next">Next ►</button>
+    </div>
+  </div>
+
+  <div class="add" id="add">
+    <div class="fields">
+      <div class="f"><span class="lbl">이름</span><input id="f-name" list="names" autocomplete="off" placeholder="이름"></div>
+      <datalist id="names"></datalist>
+      <div class="f"><span class="lbl">시작</span><input id="f-from" type="date"></div>
+      <div class="f"><span class="lbl">종료</span><input id="f-to" type="date"></div>
+      <div class="f"><span class="lbl">메모 (생략 가능)</span><input id="f-note" placeholder="여름휴가"></div>
+      <button class="save" id="f-save">등록</button>
+    </div>
+    <div class="msg" id="f-msg"></div>
+  </div>
+
+  <div class="cal">
+    <div class="wk">
+      <div class="lbl">Sun</div><div class="lbl">Mon</div><div class="lbl">Tue</div><div class="lbl">Wed</div>
+      <div class="lbl">Thu</div><div class="lbl">Fri</div><div class="lbl">Sat</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="foot"><span id="src">시안 비교용 — 실제 데이터는 data.js</span><span>GG SI TEAM</span></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+/* ════ 공통 로직 ════ */
+const D = window.CAL_DATA;
+const WD = ["일","월","화","수","목","금","토"];
+const pad = n => String(n).padStart(2,"0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const TODAY = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); })();
+let cur = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+const leaves = D.leaves.slice();   // 시안에서 등록해도 원본 data.js 배열은 건드리지 않는다
+
+/* 인접 순번끼리 확실히 갈라지도록 색상환을 크게 건너뛴다 */
+const HUES = [[138,54],[0,62],[184,56],[46,70],[230,56],[92,48],
+              [345,58],[161,52],[23,66],[207,58],[69,60],[115,44]];
+let roster = [];
+/* 시안 6 은 2색 체계(민트·바이올렛·검정 3종 회전) */
+const DUO = [["#5200FF","#ffffff"],["#00D6AE","#06231D"],["#0A0A0B","#ffffff"]];
+function tone(n){
+  const i = Math.max(0, roster.indexOf(n));
+  const [h,s] = HUES[i % HUES.length];
+  if (T === 5 || T === 7) return { c:"#ffffff", cb:`hsl(${h} 78% 46%)` };
+  if (T === 6){ const [bg,fg] = DUO[i % DUO.length]; return { c:fg, cb:bg }; }
+  if (T === 8) return { c:`hsl(${h} 42% 32%)`, cb:`hsl(${h} 72% 91%)`, cd:`hsl(${h} 58% 63%)` };
+  return { c:`hsl(${h} ${s}% 34%)`, cb:`hsl(${h} ${s}% 95%)` };
+}
+let justAdded = null;
+function chipHtml(p, fresh){
+  const t = tone(p.name);
+  const sp = p.end && p.end !== p.start ? ` ~ ${p.end}` : "";
+  return `<span class="chip${fresh ? " new" : ""}" style="--c:${t.c};--cb:${t.cb}${t.cd ? `;--cd:${t.cd}` : ""}"`
+    + ` title="${p.name} · ${p.start}${sp}${p.note ? " · " + p.note : ""}">`
+    + `${p.name}${p.note ? `<i>${p.note}</i>` : ""}</span>`;
+}
+const isOff = d => d.getDay() === 0 || d.getDay() === 6 || !!D.holidays[iso(d)];
+const onLeave = day => isOff(day) ? [] : leaves
+  .filter(l => parse(l.start) <= day && day <= parse(l.end || l.start))
+  .sort((a,b) => a.name.localeCompare(b.name,"ko"));
+
+function render(){
+  const y = cur.getFullYear(), m = cur.getMonth();
+  const dim = new Date(y, m+1, 0).getDate();
+  const lead = new Date(y, m, 1).getDay();
+  const total = Math.ceil((lead + dim)/7)*7;
+  roster = [...new Set(leaves.map(l => l.name))].sort((a,b) => a.localeCompare(b,"ko"));
+
+  document.getElementById("label").innerHTML =
+    [...`${y}.${pad(m+1)}`].map((c,i) =>
+      `<i class="${c === "." ? "p" : ""}" style="animation-delay:${i*36}ms">${c}</i>`).join("");
+  drawLed(`${y}.${pad(m+1)}`);
+
+  let cells = "";
+  for (let i = 0; i < total; i++){
+    const d = new Date(y, m, i - lead + 1);
+    const inM = d.getMonth() === m && d.getFullYear() === y;
+    const hol = inM ? D.holidays[iso(d)] : null;
+    const now = inM && +d === +TODAY;
+    const ppl = inM ? onLeave(d) : [];
+    const chips = ppl.map(p => chipHtml(p, justAdded && p === justAdded)).join("");
+    const isBurst = !!justAdded && inM && iso(d) === justAdded.start;
+    cells += `<div class="${["d", inM ? "" : "pad", now ? "now" : (inM && isOff(d) ? "off" : ""), isBurst ? "burst" : ""].filter(Boolean).join(" ")}"`
+      + ` style="--i:${i}"${inM && !isOff(d) ? ` data-date="${iso(d)}"` : ""}>`
+      + `<div class="dn"><b>${pad(d.getDate())}</b>`
+      + (hol ? `<span class="hl">${hol}</span>` : "")
+      + (ppl.length > 1 ? `<span class="ct">${ppl.length}</span>` : "")
+      + `</div><div class="who">${chips}</div></div>`;
+  }
+  document.getElementById("grid").innerHTML = cells;
+
+  const t = onLeave(TODAY);
+  document.getElementById("k").textContent = `오늘 ${iso(TODAY)} ${WD[TODAY.getDay()]}`;
+  document.getElementById("v").innerHTML = t.length
+    ? "휴가 " + t.map(p => chipHtml(p)).join("")
+    : (isOff(TODAY) ? "휴무일" : "전원 근무");
+  document.getElementById("names").innerHTML = roster.map(n => `<option value="${n}">`).join("");
+  warp();
+}
+document.getElementById("prev").onclick = () => { cur.setMonth(cur.getMonth()-1); render(); };
+document.getElementById("next").onclick = () => { cur.setMonth(cur.getMonth()+1); render(); };
+document.getElementById("today").onclick = () => { cur = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1); render(); };
+
+/* ════ 등록 폼 ════ */
+const addBox = document.getElementById("add"), msg = document.getElementById("f-msg");
+const F = id => document.getElementById("f-" + id);
+const validDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && iso(parse(s)) === s;
+
+function openForm(date){
+  addBox.classList.add("on");
+  if (date){ F("from").value = date; F("to").value = date; }
+  F("name").focus();
+}
+document.getElementById("toggle").onclick = () =>
+  addBox.classList.contains("on") ? addBox.classList.remove("on") : openForm();
+
+function say(html, bad){ msg.className = "msg on" + (bad ? " bad" : ""); msg.innerHTML = html; }
+
+document.getElementById("f-save").onclick = () => {
+  const name = F("name").value.trim(), from = F("from").value;
+  const to = F("to").value || from, note = F("note").value.trim();
+  if (!name)                   return say("이름을 입력하세요.", true);
+  if (!validDate(from))        return say("시작일을 선택하세요.", true);
+  if (!validDate(to))          return say("종료일이 올바르지 않습니다.", true);
+  if (parse(to) < parse(from)) return say("종료일이 시작일보다 앞섭니다.", true);
+  if (note.includes(","))      return say("메모에 쉼표는 쓸 수 없습니다.", true);
+  const rec = { name, start: from, end: to, note };
+  leaves.push(rec);
+  justAdded = rec;
+  cur = new Date(parse(from).getFullYear(), parse(from).getMonth(), 1);   // 등록한 달을 보여준다
+  const line = `{ name: "${name}", start: "${from}", end: "${to}"${note ? `, note: "${note}"` : ""} },`;
+  say(`달력에 반영했습니다. 시안 화면이라 저장은 되지 않으니, 실제로 남기려면 아래 한 줄을 <b>data.js</b> 에 붙여넣으세요.<code>${line}</code>`);
+  F("name").value = ""; F("note").value = "";
+  render();
+  setTimeout(() => { justAdded = null; }, 900);   // 애니메이션이 한 번만 돌게
+};
+addBox.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("f-save").click(); });
+
+/* ════ 후보 3 · pixel-led-display : 텍스트를 도트로 샘플링 ════ */
+const led = document.getElementById("led");
+function drawLed(text){
+  if (T !== 3) return;
+  const c = led.getContext("2d"), W = led.width, H = led.height;
+  const off = document.createElement("canvas"); off.width = W; off.height = H;
+  const o = off.getContext("2d");
+  o.fillStyle = "#000"; o.font = "600 132px " + getComputedStyle(document.body).getPropertyValue("--num");
+  o.textBaseline = "middle"; o.fillText(text, 4, H/2);
+  const px = o.getImageData(0,0,W,H).data;
+  c.clearRect(0,0,W,H);
+  const step = 7, r = 2.5;
+  for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step){
+    const on = px[(y*W + x)*4 + 3] > 90;
+    c.beginPath(); c.arc(x + step/2, y + step/2, on ? r : 1, 0, 6.2832);
+    c.fillStyle = on ? "#E8551A" : "#1B1C1E1f"; c.fill();
+  }
+}
+
+/* ════ 후보 2 · interactive-grid + dynamic-weight ════ */
+const grid = document.getElementById("grid");
+let rafPending = false, mx = 0, my = 0;
+grid.addEventListener("click", e => {
+  const cell = e.target.closest(".d[data-date]");
+  if (cell) openForm(cell.dataset.date);
+});
+grid.addEventListener("pointermove", e => {
+  mx = e.clientX; my = e.clientY;
+  const chip = e.target.closest(".chip");
+  if (chip){
+    const r = chip.getBoundingClientRect();
+    chip.style.transform = `translate(${((e.clientX-r.left)/r.width-.5)*7}px,${((e.clientY-r.top)/r.height-.5)*3}px)`;
+  }
+  if (!IX.has(T) || rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    for (const cell of grid.children){
+      const r = cell.getBoundingClientRect();
+      const dx = mx - (r.left + r.width/2), dy = my - (r.top + r.height/2);
+      const dist = Math.hypot(dx, dy);
+      cell.classList.toggle("lift", dist < Math.max(r.width, r.height) * .62);
+      const b = cell.firstElementChild.firstElementChild;      // 날짜 숫자
+      const w = dist < 340 ? Math.round(400 + (1 - dist/340) * 300) : 400;
+      if (b.dataset.w !== String(w)){ b.dataset.w = w; b.style.fontWeight = w; }
+    }
+  });
+});
+grid.addEventListener("pointerleave", () => {
+  for (const cell of grid.children){
+    cell.classList.remove("lift");
+    const b = cell.firstElementChild.firstElementChild;
+    b.style.fontWeight = ""; delete b.dataset.w;
+  }
+});
+grid.addEventListener("pointerout", e => {
+  const c = e.target.closest(".chip"); if (c) c.style.transform = "";
+});
+
+/* ════ 배경 셰이더 (후보 1·3·4) ════ */
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv = document.getElementById("bg");
+let gl, uni, running = false, visible = true, lastAct = 0, warpAt = -9e9, mouse = [.5,.62];
+
+const HEAD = `precision mediump float;
+uniform vec2 uRes;uniform float uTime;uniform vec2 uMouse;uniform float uWarp;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+`;
+/* 1 · 하프톤 도트 + 오빗 아크 */
+const F1 = HEAD + `void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;float ar=uRes.x/uRes.y;vec2 p=vec2(uv.x*ar,uv.y);
+  vec3 col=vec3(.953,.941,.933);
+  float f=n(p*2.1+vec2(uTime*.018,uTime*.013));
+  float d=distance(p,vec2(uMouse.x*ar,uMouse.y));
+  float r=.09+f*.19+exp(-d*2.7)*.25+uWarp*.13;
+  col-=vec3(.052,.060,.068)*(1.-smoothstep(r-.07,r+.07,length(fract(p*44.)-.5)));
+  for(int i=0;i<3;i++){float k=float(i);
+    float rad=.30+k*.17+sin(uTime*.06+k*2.1)*.022;
+    float ring=abs(distance(p,vec2(.16+k*.44,.78-k*.31))-rad);
+    col-=vec3(-.030,.075,.150)*(1.-smoothstep(0.,.0024,ring))*(.55+uWarp*.5);}
+  col*=1.-.045*pow(distance(uv,vec2(.5))*1.2,2.);
+  gl_FragColor=vec4(col,1.);}`;
+/* 3 · 도트 매트릭스 (기계 계기판) */
+const F3 = HEAD + `void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;float ar=uRes.x/uRes.y;vec2 p=vec2(uv.x*ar,uv.y);
+  vec3 col=vec3(.937,.937,.925);
+  float d=distance(p,vec2(uMouse.x*ar,uMouse.y));
+  float g=exp(-d*3.1);
+  float dt=1.-smoothstep(.12,.20,length(fract(p*70.)-.5));
+  col-=vec3(.040,.042,.046)*dt;
+  col-=vec3(-.070,.045,.110)*dt*(g*.9+uWarp*.5);
+  float sc=step(.5,fract(uv.y*160.+uTime*.06))*.006;
+  col-=sc;
+  col*=1.-.05*pow(distance(uv,vec2(.5))*1.25,2.);
+  gl_FragColor=vec4(col,1.);}`;
+/* 4 · 리액티브 라인 (커서·워프에 휘는 선의 장) */
+const F4 = HEAD + `void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;float ar=uRes.x/uRes.y;vec2 p=vec2(uv.x*ar,uv.y);
+  vec3 col=vec3(.969,.969,.961);
+  float d=distance(p,vec2(uMouse.x*ar,uMouse.y));
+  float bend=exp(-d*2.2)*.10+uWarp*.05;
+  float f=n(p*1.6+vec2(0.,uTime*.05));
+  float y=p.y+bend*sin(p.x*7.+uTime*.35)+f*.035;
+  float ln=1.-smoothstep(0.,.0028,abs(fract(y*30.)-.5)/30.);
+  col-=vec3(.055,.058,.062)*ln;
+  col-=vec3(.060,.045,-.020)*ln*exp(-d*2.4)*1.4;
+  col*=1.-.04*pow(distance(uv,vec2(.5))*1.2,2.);
+  gl_FragColor=vec4(col,1.);}`;
+
+/* 7 · 오로라 (채도 높은 블롭 3개가 흐르고 커서에서 번짐) */
+const F7 = HEAD + `void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;float ar=uRes.x/uRes.y;vec2 p=vec2(uv.x*ar,uv.y);
+  float t=uTime*.06;
+  float b1=exp(-distance(p,vec2(.26+sin(t)*.11,.82+cos(t*.8)*.07))*2.1);
+  float b2=exp(-distance(p,vec2(.92+cos(t*.9)*.13,.28+sin(t*1.1)*.10))*1.9);
+  float b3=exp(-distance(p,vec2(.58+sin(t*1.3)*.15,.54+cos(t)*.12))*2.3);
+  float d=distance(p,vec2(uMouse.x*ar,uMouse.y));
+  vec3 col=vec3(.941,.941,.961);
+  col+=vec3(.40,-.02,.30)*b1*.46;
+  col+=vec3(-.12,.28,.36)*b2*.46;
+  col+=vec3(.18,-.05,.46)*b3*.40;
+  col+=vec3(.22,.06,.38)*exp(-d*2.5)*(.15+uWarp*.45);
+  col-=.018*(1.-smoothstep(.16,.24,length(fract(p*54.)-.5)));
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);}`;
+
+/* 8 · 파스텔 (originkit dotmatrix + proximityorbit) — 커서에서 점이 부풀고 오브가 흐른다 */
+const F8 = HEAD + `void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;float ar=uRes.x/uRes.y;vec2 p=vec2(uv.x*ar,uv.y);
+  float t=uTime*.05;
+  vec3 col=vec3(.973,.969,.988);
+  col+=vec3(-.045,.060,.020)*exp(-distance(p,vec2(.22+sin(t)*.09,.80+cos(t*.8)*.06))*2.4)*.85;
+  col+=vec3(.060,-.012,.014)*exp(-distance(p,vec2(.90+cos(t*.9)*.10,.26+sin(t*1.1)*.08))*2.2)*.85;
+  col+=vec3(.018,-.030,.062)*exp(-distance(p,vec2(.56+sin(t*1.2)*.12,.52+cos(t)*.10))*2.6)*.8;
+  float d=distance(p,vec2(uMouse.x*ar,uMouse.y));
+  float r=.13+exp(-d*2.8)*.21+uWarp*.10;
+  col-=vec3(.030,.027,.021)*(1.-smoothstep(r-.07,r+.07,length(fract(p*40.)-.5)));
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);}`;
+
+const SHADER = {1:F1, 3:F3, 4:F4, 7:F7, 8:F8};   // 배경 셰이더가 있는 시안
+const IX = new Set([2,5,6,7,8]);                  // 인터랙티브 그리드를 쓰는 시안
+
+function sh(t,s){ const o = gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o); return o; }
+function useShader(frag){
+  if (!gl) return;
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}"));
+  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, frag));
+  gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)){ console.warn(gl.getProgramInfoLog(pr)); return; }
+  gl.useProgram(pr);
+  const a = gl.getAttribLocation(pr,"p");
+  gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  uni = { res:gl.getUniformLocation(pr,"uRes"), time:gl.getUniformLocation(pr,"uTime"),
+          mouse:gl.getUniformLocation(pr,"uMouse"), warp:gl.getUniformLocation(pr,"uWarp") };
+  size();
+}
+function size(){
+  if (!gl || !uni) return;
+  const s = .75;
+  cv.width = Math.max(1, Math.round(innerWidth*s));
+  cv.height = Math.max(1, Math.round(innerHeight*s));
+  gl.viewport(0,0,cv.width,cv.height);
+  gl.uniform2f(uni.res, cv.width, cv.height);
+}
+function draw(ms){
+  if (!gl || !uni) return 0;
+  const w = Math.max(0, 1 - (ms - warpAt)/900);
+  gl.uniform1f(uni.time, ms/1000);
+  gl.uniform2f(uni.mouse, mouse[0], mouse[1]);
+  gl.uniform1f(uni.warp, w*w);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  return w;
+}
+function loop(ms){
+  if (!running) return;
+  const w = draw(ms);
+  if (ms - lastAct > 8000 && w <= .001){ running = false; return; }
+  requestAnimationFrame(loop);
+}
+function wake(){
+  lastAct = performance.now();
+  if (!running && visible && gl && uni && !REDUCED && SHADER[T]){ running = true; requestAnimationFrame(loop); }
+}
+function warp(){ warpAt = performance.now(); wake(); }
+
+gl = cv.getContext("webgl",{antialias:false,alpha:false,powerPreference:"low-power"});
+if (gl){
+  addEventListener("resize", () => { size(); drawLed(document.getElementById("label").textContent); if (!running) draw(performance.now()); });
+  addEventListener("pointermove", e => { mouse = [e.clientX/innerWidth, 1 - e.clientY/innerHeight]; wake(); }, {passive:true});
+  addEventListener("scroll", wake, {passive:true});
+  document.addEventListener("visibilitychange", () => {
+    visible = document.visibilityState === "visible"; visible ? wake() : running = false;
+  });
+} else cv.classList.add("off");
+
+/* ════ 시안 전환 ════ */
+const INFO = {
+  1:"Mastercard 크림 시스템 + Nintendo 하프톤 도트. 배경 점 크기가 커서에 반응, 오렌지 오빗 아크 3개가 흐름. 칩·버튼 전부 필 형태.",
+  2:"originkit interactive-grid + dynamic-weight. 배경 텍스처 없음. 커서 근처 날짜 칸이 들리고, 숫자 굵기가 커서 거리에 따라 실시간으로 변함(Bahnschrift 가변축).",
+  3:"originkit pixel-led-display + dotmatrix. 월 숫자를 LED 도트로 렌더, 배경은 계기판 도트 + 미세 스캔라인. 검정 2px 프레임의 기계 느낌.",
+  4:"originkit reactive-lines. 배경이 얇은 선의 장이고 커서에서 휘어짐. 달력은 라운드 0, 반투명 카드에 블러. 액센트는 청색 한 가지.",
+  5:"인터랙티브 그리드 + 채도 높은 사람별 색 블록. 크림 제거하고 쿨 뉴트럴 캔버스, 오늘은 울트라바이올렛. 이름이 곧 컬러라 한눈에 구분됨.",
+  6:"인터랙티브 그리드 + The Verge 2색 체계. 민트·바이올렛·검정 3종만 회전, 요일 바는 검정 반전. 가장 그래픽하고 색이 세다.",
+  7:"인터랙티브 그리드 + 오로라 셰이더. 마젠타·시안·바이올렛 블롭이 흐르고 커서에서 번짐. 카드는 반투명 유리라 색이 통과해 보임. 컬러감 최대.",
+  8:"파스텔 톤. 칸을 붙이지 않고 떼어내 개별 라운드 타일로 만들고, 배경은 originkit dotmatrix + proximityorbit — 커서 근처에서 점이 부풀고 민트·피치·라일락 오브가 느리게 흐름."
+};
+let T = 1;
+function setTheme(n){
+  T = n;
+  document.documentElement.dataset.t = n;
+  document.querySelectorAll(".picker button").forEach(b => b.classList.toggle("on", +b.dataset.n === n));
+  document.getElementById("pd").textContent = INFO[n];
+  cv.classList.toggle("off", !SHADER[n]);
+  running = false;
+  if (SHADER[n]){ useShader(SHADER[n]); wake(); }
+  render();
+  return n;
+}
+document.querySelectorAll(".picker button").forEach(b => b.onclick = () => setTheme(+b.dataset.n));
+setTheme(8);
+
+function selftest(){
+  const out = [], ok = (c,m) => out.push((c ? "ok   " : "FAIL ") + m);
+  for (const n of [1,2,3,4,5,6,7,8]){
+    setTheme(n);
+    const cs = [...document.querySelectorAll("#grid .d")];
+    const dim = new Date(cur.getFullYear(), cur.getMonth()+1, 0).getDate();
+    ok(cs.length % 7 === 0 && cs.filter(e => e.classList.contains("pad")).length === cs.length - dim,
+       `시안 ${n} 달력 격자 정상`);
+    ok(!cs.some(e => (e.classList.contains("off")||e.classList.contains("pad")) && e.querySelector(".chip")),
+       `시안 ${n} 휴무일·타월 칸에 이름 없음`);
+    ok(SHADER[n] ? (!!uni && !cv.classList.contains("off")) : cv.classList.contains("off"),
+       `시안 ${n} 배경 처리 일치`);
+    ok(new Set(roster.map(x => tone(x).cb)).size === (n === 6 ? Math.min(3, roster.length) : roster.length),
+       `시안 ${n} 칩 색 체계 일치`);
+    ok(document.body.scrollWidth <= document.body.clientWidth + 1, `시안 ${n} 가로 스크롤 없음`);
+  }
+  ok(led.getContext("2d").getImageData(0,0,led.width,led.height).data.some(v => v > 0), "LED 캔버스에 그려짐");
+  setTheme(1);
+  return out.join("\n");
+}
+</script>
+</body>
+</html>

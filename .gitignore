@@ -1,0 +1,12 @@
+node_modules/
+.netlify/
+package-lock.json
+
+# 시크릿
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+serviceAccount*.json
