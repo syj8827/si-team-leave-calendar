@@ -39,10 +39,15 @@ function clean(b){
   return { id: crypto.randomUUID(), name, start, end, note };
 }
 
+/* x-api 는 배포된 버전을 쓰기 없이 확인하는 표식이다 (구 버전 판별용) */
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" }
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      "x-api": "per-record-strong"
+    }
   });
 
 /* TEAM_PASSCODE 환경변수를 넣으면 쓰기(등록·삭제)에 암호를 요구한다.
