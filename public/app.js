@@ -27,6 +27,9 @@ let live = false;
 let justAdded = null;
 let lastDeleted = null;      // 되돌리기용
 
+/* 월 표시 글자별 기본 색 (큰 글자 기준 3:1 이상). 애니메이션이 이 위로 파동을 얹는다 */
+const RAMP = ["#2F937A","#2F9390","#2F7F93","#2F6993","#2F9361","#2F934D","#2F932F"];
+
 /* 보라 계열(250~330) 제외. 인접 순번끼리 최소 46도 벌어지게 배열 */
 const HUES = [138,0,184,46,230,92,345,161,23,207,69,115];
 let roster = [];
@@ -64,9 +67,12 @@ function render(){
   roster = [...new Set(leaves.map(l => l.name))].sort((a,b) => a.localeCompare(b,"ko"));
   document.getElementById("names").innerHTML =
     roster.map(n => `<option value="${esc(n)}">`).join("");
+  /* 정적 색을 미리 넣어 둔다 — 모션을 끈 환경(prefers-reduced-motion)에서도 색 램프는 남는다.
+     애니메이션이 돌 때는 hue 키프레임이 이 값을 덮는다. */
   document.getElementById("label").innerHTML =
-    [...`${y}.${pad(m+1)}`].map((c,i) =>
-      `<i class="${c === "." ? "p" : ""}" style="animation-delay:${i*36}ms">${c}</i>`).join("");
+    [...`${y}.${pad(m+1)}`].map((ch,i) => ch === "."
+      ? `<i class="p" style="--i:${i}">.</i>`
+      : `<i style="--i:${i};color:${RAMP[i % RAMP.length]}">${ch}</i>`).join("");
 
   let cells = "";
   for (let i = 0; i < total; i++){
@@ -424,6 +430,50 @@ window.selftest = function selftest(){
     ok(window.__pwn === 0, "페이로드 미실행 (실행 " + window.__pwn + "회)");
     ok(document.querySelector("#grid .nm").textContent.includes("<img"), "위험 문자는 글자로 표시됨");
     leaves = keep; live = keepLive; render();
+  })();
+
+  /* 월 표시 — Jua + 두둥실·쫀득·색파동.
+     문서 타임라인은 탭이 안 보이면 멈추므로, 재생에 의존하지 않고 currentTime 을 직접 넣어 검사한다.
+     글자별 위상차는 CSS animation-delay 가 갖고 있으니 여기서 더하면 안 된다(더하면 상쇄된다). */
+  (() => {
+    const h1 = document.querySelector("h1");
+    const chars = [...h1.querySelectorAll("i")];
+    const bob = el => el.getAnimations().find(a => a.animationName === "bob" || a.animationName === "bobdot");
+    const ty = el => new DOMMatrix(getComputedStyle(el).transform).f;
+    const setAll = T => chars.forEach(c => { const a = bob(c); if (a) a.currentTime = T; });
+
+    ok(document.fonts.check('400 96px "JuaNum"'), "Jua 서브셋 로드됨");
+    ok(getComputedStyle(h1).fontFamily.startsWith("JuaNum"), "월 표시에 Jua 적용");
+    ok(getComputedStyle(h1).fontWeight === "400", "합성 볼드 안 씀");
+    ok(chars.length === 7 && chars.every(c => c.style.getPropertyValue("--i") !== ""), "글자 7개에 --i 부여");
+    ok(!chars.some(c => c.style.animationDelay), "인라인 딜레이 없음 (CSS 위상차 유지)");
+    ok(chars.every(c => c.classList.contains("p") || /^rgb/.test(c.style.color)),
+       "숫자에 정적 램프 색 (모션 끈 환경 대비)");
+
+    const names = chars[0].getAnimations().map(a => a.animationName);
+    ok(names.includes("bob") && names.includes("hue"), "숫자에 bob + hue");
+
+    chars.forEach(c => { const r = c.getAnimations().find(a => a.animationName === "rise"); if (r) r.currentTime = 600; });
+    setAll(1450);
+    const ys = chars.map(c => +ty(c).toFixed(2));
+    ok(new Set(ys).size >= 4, `같은 순간 글자 높이가 ${new Set(ys).size}단계 = 파도`);
+    ok(Math.min(...ys) < -3, `두둥실 진폭 ${Math.min(...ys)}px`);
+    const a1 = ys.join();
+    setAll(2100);
+    ok(chars.map(c => +ty(c).toFixed(2)).join() !== a1, "시간이 지나면 파도가 이동");
+
+    const dot = chars.find(c => c.classList.contains("p"));
+    setAll(1512);                                  // 점(index 4)의 최고점
+    ok(Math.abs(ty(dot)) > Math.abs(ty(chars[0])) + 2, "점이 숫자보다 더 높이 튄다");
+    ok(getComputedStyle(dot).color === "rgb(196, 80, 107)", "점은 따뜻한 색 고정");
+
+    const hue = chars[0].getAnimations().find(a => a.animationName === "hue");
+    const cols = [0, .25, .5, .75].map(f => { hue.currentTime = f * 5600; return getComputedStyle(chars[0]).color; });
+    ok(new Set(cols).size === 4, "색이 4단계로 순환 (컬러 파동)");
+
+    const hb = h1.getBoundingClientRect();
+    ok(chars.every(c => { const r = c.getBoundingClientRect();
+      return r.top >= hb.top - .5 && r.right <= hb.right + .5; }), "두둥실이 위·옆으로 안 잘림");
   })();
 
   /* 가독성·대비 */

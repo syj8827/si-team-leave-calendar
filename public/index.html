@@ -20,6 +20,13 @@
   font-family:"NanumSquareRound"; font-style:normal; font-weight:800; font-display:swap;
   src:local("NanumSquareRoundEB"), url("fonts/NanumSquareRoundEB.woff2") format("woff2");
 }
+/* Jua(주아) — 월 표시 전용. 점과 숫자만 서브셋해서 3KB 다. OFL 로 상업 사용·재배포 허용.
+   unicode-range 덕분에 이 글자들만 Jua 로 나가고 나머지는 나눔스퀘어라운드가 받는다. */
+@font-face{
+  font-family:"JuaNum"; font-style:normal; font-weight:400; font-display:swap;
+  src:url("fonts/Jua-num.woff2") format("woff2");
+  unicode-range:U+002E, U+0030-0039;
+}
 
 /* ─────────────────────────────────────────────────────────────
    읽는 게 1순위. 글자가 놓이는 면은 전부 불투명 흰 타일이고,
@@ -61,11 +68,42 @@ body::before{content:"";position:fixed;inset:0;z-index:-2;background:
 
 /* ── 헤더 ── */
 .head{display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;margin-bottom:22px}
-h1{font-size:clamp(54px,7.4vw,96px);font-weight:800;line-height:.88;
-  letter-spacing:-.018em;font-variant-numeric:lining-nums tabular-nums;display:flex;overflow:hidden}
-h1 i{font-style:normal;display:inline-block;animation:rise .55s var(--ease) both}
-h1 i.p{color:var(--accent)}
+h1{font-family:"JuaNum",var(--kr);font-size:clamp(56px,7.6vw,100px);font-weight:400;
+  font-synthesis:none;line-height:.9;letter-spacing:.004em;display:flex;
+  /* overflow 로 아래를 가려 글자가 슬롯에서 올라오게 한다.
+     위 패딩은 두둥실 여유 — scaleY 가 transform-origin:bottom 기준으로 위로 자라므로
+     translateY 진폭(11px)보다 넉넉히 필요하다. 실측 최악 침범 2.94px 였다. */
+  overflow:hidden;padding:28px 10px 0;margin:-28px -10px 4px}
+h1 i{font-style:normal;display:inline-block;transform-origin:50% 100%;
+  animation:
+    rise .55s var(--ease) both,
+    bob 2.9s ease-in-out infinite calc(.55s + var(--i) * .11s),
+    hue 5.6s linear infinite calc(var(--i) * -.7s)}
+/* 점은 색 파동에서 빼고 따뜻한 색으로 고정, 대신 조금 더 통통 튄다 */
+h1 i.p{color:#C4506B;animation:
+    rise .55s var(--ease) both,
+    bobdot 2.9s ease-in-out infinite calc(.55s + var(--i) * .11s)}
 @keyframes rise{from{transform:translateY(108%)}to{transform:translateY(0)}}
+/* 두둥실 + 쫀득 — 뜰 때 늘어나고 내려앉을 때 눌린다 */
+@keyframes bob{
+  0%,100%{transform:translateY(0) scale(1,1)}
+  20%{transform:translateY(-7px) scale(.97,1.05)}
+  45%{transform:translateY(0) scale(1.05,.94)}
+  68%{transform:translateY(-3px) scale(.99,1.02)}
+}
+@keyframes bobdot{
+  0%,100%{transform:translateY(0) scale(1,1)}
+  18%{transform:translateY(-11px) scale(.9,1.12)}
+  44%{transform:translateY(0) scale(1.14,.86)}
+  66%{transform:translateY(-4px) scale(.98,1.04)}
+}
+/* 색이 글자들을 타고 흐른다 (음수 딜레이로 처음부터 퍼져 있게) */
+@keyframes hue{
+  0%,100%{color:#2F937A}
+  25%{color:#2F9390}
+  50%{color:#2F6993}
+  75%{color:#2F934D}
+}
 
 .sum{display:flex;flex-direction:column;gap:9px;max-width:540px}
 .sum .v{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;font-weight:700;color:var(--ink2)}
