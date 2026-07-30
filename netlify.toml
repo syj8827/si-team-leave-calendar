@@ -1,5 +1,7 @@
 [build]
   publish = "."
+  # 함수가 @netlify/blobs 를 찾을 수 있게 의존성 설치를 명시한다
+  command = "npm install"
 
 [functions]
   directory = "netlify/functions"
