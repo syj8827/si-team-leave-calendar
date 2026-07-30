@@ -10,3 +10,6 @@ package-lock.json
 *.key
 credentials*.json
 serviceAccount*.json
+
+# 실제 이름이 들어가는 백업은 공개 레포에 올리지 않는다
+backups/
