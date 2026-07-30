@@ -25,7 +25,6 @@ let cur = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
 let leaves = [];
 let live = false;
 let justAdded = null;
-let lastDeleted = null;      // 되돌리기용
 
 /* 월 표시 글자별 기본 색 (큰 글자 기준 3:1 이상). 애니메이션이 이 위로 파동을 얹는다 */
 const RAMP = ["#2F937A","#2F9390","#2F7F93","#2F6993","#2F9361","#2F934D","#2F932F"];
@@ -33,10 +32,20 @@ const RAMP = ["#2F937A","#2F9390","#2F7F93","#2F6993","#2F9361","#2F934D","#2F93
 /* 보라 계열(250~330) 제외. 인접 순번끼리 최소 46도 벌어지게 배열 */
 const HUES = [138,0,184,46,230,92,345,161,23,207,69,115];
 let roster = [];
-function tone(name){
-  const h = HUES[Math.max(0, roster.indexOf(name)) % HUES.length];
+const hueOf = ci => HUES[(Number.isInteger(ci) && ci >= 0 && ci < HUES.length) ? ci : 0];
+function shades(h){
   return { c:`hsl(${h} 44% 29%)`, cb:`hsl(${h} 70% 92%)`, cd:`hsl(${h} 56% 60%)` };
 }
+/* ci 가 있으면 고른 색, 없으면 이름 순번으로 자동 배정 */
+function tone(name, ci){
+  if (Number.isInteger(ci) && ci >= 0 && ci < HUES.length) return shades(HUES[ci]);
+  return shades(HUES[Math.max(0, roster.indexOf(name)) % HUES.length]);
+}
+/* 같은 사람이 이미 색을 고른 적이 있으면 그 색을 이어 쓴다 (한 사람이 여러 색이 되지 않게) */
+const ciOfName = name => {
+  const hit = [...leaves].reverse().find(l => l.name === name && Number.isInteger(l.ci));
+  return hit ? hit.ci : null;
+};
 
 const isOff = d => d.getDay() === 0 || d.getDay() === 6 || !!D.holidays[iso(d)];
 /* 주말·공휴일은 전원 휴무라 등록분을 표시하지 않는다 */
@@ -45,14 +54,14 @@ const onLeave = day => isOff(day) ? [] : leaves
   .sort((a,b) => a.name.localeCompare(b.name,"ko"));
 
 function chipHtml(p, fresh, plain){
-  const t = tone(p.name);
+  const t = tone(p.name, p.ci);
   const span = p.end && p.end !== p.start ? ` ~ ${p.end}` : "";
   const del = !plain && p.id;
   const label = `${p.name} · ${p.start}${span}${p.note ? " · " + p.note : ""}`;
   const tag = del ? "button" : "span";
   return `<${tag} class="chip${fresh ? " new" : ""}" style="--c:${t.c};--cb:${t.cb};--cd:${t.cd}"`
-    + (del ? ` type="button" data-id="${esc(p.id)}" aria-label="${esc(label)} 삭제"` : "")
-    + ` title="${esc(label)}${del ? " — 눌러서 삭제" : ""}">`
+    + (del ? ` type="button" data-id="${esc(p.id)}" aria-label="${esc(label)} 수정"` : "")
+    + ` title="${esc(label)}${del ? " — 눌러서 수정" : ""}">`
     + `<span class="nm">${esc(p.name)}</span>${p.note ? `<i>${esc(p.note)}</i>` : ""}`
     + `</${tag}>`;
 }
@@ -173,24 +182,75 @@ function say(text, bad, undo){
   }
 }
 
+/* ── 색 스와치 ── 저장은 팔레트 인덱스(ci)로만 한다 */
+let pickedCi = null;                       // null = 이름별 자동
+function paintSwatches(){
+  F("sw").innerHTML =
+    `<button type="button" class="auto" data-ci="" aria-pressed="${pickedCi === null}">자동</button>`
+    + HUES.map((h, i) =>
+        `<button type="button" data-ci="${i}" style="--c:${shades(h).cd}"`
+        + ` aria-pressed="${pickedCi === i}" aria-label="색 ${i + 1}" title="색 ${i + 1}"></button>`
+      ).join("");
+}
+F("sw").addEventListener("click", e => {
+  const b = e.target.closest("button[data-ci]");
+  if (!b) return;
+  pickedCi = b.dataset.ci === "" ? null : Number(b.dataset.ci);
+  paintSwatches();
+});
+/* 이미 색을 고른 사람 이름을 넣으면 그 색을 이어 쓴다 */
+F("name").addEventListener("input", () => {
+  if (editing) return;
+  const ci = ciOfName(F("name").value.trim());
+  if (ci !== null && ci !== pickedCi){ pickedCi = ci; paintSwatches(); }
+});
+
+/* ── 폼: 등록 모드 / 수정 모드 ── */
+let editing = null;                        // 수정 중인 레코드 id
+
+function show(on){
+  addBox.classList.toggle("on", on);
+  const t = document.getElementById("toggle");
+  t.classList.toggle("on", on);
+  t.setAttribute("aria-expanded", String(on));
+}
+function setMode(rec){
+  editing = rec ? rec.id : null;
+  addBox.classList.toggle("editing", !!rec);
+  F("save").textContent = rec ? "수정" : "등록";
+}
 function openForm(date){
-  addBox.classList.add("on");
-  document.getElementById("toggle").classList.add("on");
-  document.getElementById("toggle").setAttribute("aria-expanded", "true");
+  setMode(null);
+  pickedCi = null;
+  F("name").value = ""; F("note").value = "";
   if (date){ F("from").value = date; F("to").value = date; }
+  paintSwatches();
+  msg.className = "msg";
+  show(true);
   F("name").focus();
 }
-function closeForm(){
-  addBox.classList.remove("on");
-  document.getElementById("toggle").classList.remove("on");
-  document.getElementById("toggle").setAttribute("aria-expanded", "false");
+function openEdit(rec){
+  setMode(rec);
+  F("name").value = rec.name;
+  F("from").value = rec.start;
+  F("to").value = rec.end || rec.start;
+  F("note").value = rec.note || "";
+  pickedCi = Number.isInteger(rec.ci) ? rec.ci : null;
+  paintSwatches();
+  msg.className = "msg";
+  show(true);
+  F("name").focus();
 }
+function closeForm(){ setMode(null); show(false); }
+
 document.getElementById("toggle").onclick = () =>
   addBox.classList.contains("on") ? closeForm() : openForm();
+F("cancel").onclick = closeForm;
 
-async function post(rec){
-  const res = await fetch(API, {
-    method: "POST",
+/* id 가 있으면 그 레코드를 덮어쓰고(PUT), 없으면 새로 만든다(POST) */
+async function send(rec, id){
+  const res = await fetch(id ? `${API}?id=${encodeURIComponent(id)}` : API, {
+    method: id ? "PUT" : "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(rec)
   });
@@ -202,102 +262,105 @@ async function post(rec){
 }
 
 async function submit(){
-  const btn = document.getElementById("f-save");
+  const btn = F("save");
   const name = F("name").value.trim(), from = F("from").value;
   const to = F("to").value || from, note = F("note").value.trim();
+  const id = editing;                       // 아래에서 폼을 닫아도 유지되게 붙잡아 둔다
 
   if (!name)                   return say("이름을 입력하세요.", true);
   if (!valid(from))            return say("시작일을 선택하세요.", true);
   if (!valid(to))              return say("종료일이 올바르지 않습니다.", true);
   if (parse(to) < parse(from)) return say("종료일이 시작일보다 앞섭니다.", true);
-  if (leaves.some(l => l.name === name && l.start === from && l.end === to))
+  if (leaves.some(l => l.id !== id && l.name === name && l.start === from && l.end === to))
     return say("같은 사람의 같은 기간이 이미 등록돼 있습니다.", true);
 
-  const rec = { name, start: from, end: to, note };
-  const done = saved => {
-    leaves = leaves.concat(saved);
-    justAdded = saved;
+  const rec = { name, start: from, end: to, note, ci: pickedCi };
+  const apply = saved => {
+    leaves = id ? leaves.map(l => l.id === id ? saved : l) : leaves.concat(saved);
+    if (!id){ justAdded = saved; setTimeout(() => { justAdded = null; }, 900); }
     cur = new Date(parse(from).getFullYear(), parse(from).getMonth(), 1);
     render();
-    emojiBurst(btn);
-    setTimeout(() => { justAdded = null; }, 900);
-    F("name").value = ""; F("note").value = "";
+    if (!id) emojiBurst(btn);
   };
 
   if (!live){
-    done({ ...rec, id: uid() });
-    say("저장소에 연결되지 않아 화면에만 반영했습니다. 배포된 주소에서 열면 실제로 저장됩니다.");
+    apply({ ...rec, id: id || uid() });
+    say("화면에만 반영했습니다. 배포된 주소에서 열면 실제로 저장됩니다.");
+    if (id) closeForm();
     return;
   }
 
   btn.disabled = true;
   try {
-    done(await post(rec));
-    say(`${name} ${from}${to !== from ? " ~ " + to : ""} 등록했습니다.`);
+    apply(await send(rec, id));
+    say(`${name} ${from}${to !== from ? " ~ " + to : ""} ${id ? "수정" : "등록"}했습니다.`);
+    if (id) closeForm();
+    else { F("name").value = ""; F("note").value = ""; }
   } catch(e){
-    say("등록하지 못했습니다 — " + e.message, true);
+    say((id ? "수정" : "등록") + "하지 못했습니다 — " + e.message, true);
   } finally {
     btn.disabled = false;
   }
 }
-document.getElementById("f-save").onclick = submit;
+F("save").onclick = submit;
 addBox.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.tagName === "INPUT") submit();
   if (e.key === "Escape") closeForm();
 });
 
-async function removeLeave(chip){
-  const rec = leaves.find(l => l.id === chip.dataset.id);
-  if (!rec) return;
+/* ── 삭제 (수정 화면 안에서) ── */
+async function removeRecord(rec){
   const span = rec.end !== rec.start ? " ~ " + rec.end : "";
-  if (!confirm(`${rec.name} ${rec.start}${span} 삭제할까요?`)) return;
-  chip.classList.add("gone");
-
   const undo = async () => {
+    const back = { name:rec.name, start:rec.start, end:rec.end, note:rec.note, ci:rec.ci };
     try {
-      if (live) leaves = leaves.concat(await post({ name:rec.name, start:rec.start, end:rec.end, note:rec.note }));
-      else leaves = leaves.concat({ ...rec, id: uid() });
-      lastDeleted = null;
+      leaves = leaves.concat(live ? await send(back, null) : { ...back, id: uid() });
       render();
       say(`${rec.name} ${rec.start}${span} 되살렸습니다.`);
     } catch(e){ say("되돌리지 못했습니다 — " + e.message, true); }
   };
-
   if (!live){
-    setTimeout(() => {
-      leaves = leaves.filter(l => l.id !== rec.id);
-      lastDeleted = rec; render();
-      say(`${rec.name} ${rec.start}${span} 삭제했습니다.`, false, undo);
-    }, 260);
+    leaves = leaves.filter(l => l.id !== rec.id); render();
+    say(`${rec.name} ${rec.start}${span} 삭제했습니다.`, false, undo);
     return;
   }
   try {
     const res = await fetch(`${API}?id=${encodeURIComponent(rec.id)}`, { method:"DELETE" });
     if (!res.ok) throw new Error("응답 " + res.status);
-    leaves = leaves.filter(l => l.id !== rec.id);
-    lastDeleted = rec; render();
+    leaves = leaves.filter(l => l.id !== rec.id); render();
     say(`${rec.name} ${rec.start}${span} 삭제했습니다.`, false, undo);
   } catch(err){
-    chip.classList.remove("gone");
     say("삭제하지 못했습니다 — " + err.message, true);
   }
 }
+F("del").onclick = async () => {
+  const rec = leaves.find(l => l.id === editing);
+  if (!rec) return;
+  const span = rec.end !== rec.start ? " ~ " + rec.end : "";
+  if (!confirm(`${rec.name} ${rec.start}${span}\n삭제할까요? (되돌리기 버튼으로 복구할 수 있습니다)`)) return;
+  closeForm();
+  await removeRecord(rec);
+};
 
+/* ── 달력에서 열기: 칩=수정, 빈 칸=등록 ── */
 const grid = document.getElementById("grid");
-grid.addEventListener("click", e => {
-  const chip = e.target.closest(".chip[data-id]");
-  if (chip){ e.stopPropagation(); removeLeave(chip); return; }
-  const cell = e.target.closest(".d[data-date]");
-  if (cell) openForm(cell.dataset.date);
-});
-/* 키보드로도 등록·삭제가 되게 한다 */
+function openFromEvent(target){
+  const chip = target.closest(".chip[data-id]");
+  if (chip){
+    const rec = leaves.find(l => l.id === chip.dataset.id);
+    if (rec) openEdit(rec);
+    return true;
+  }
+  const cell = target.closest(".d[data-date]");
+  if (cell){ openForm(cell.dataset.date); return true; }
+  return false;
+}
+grid.addEventListener("click", e => { if (openFromEvent(e.target)) e.stopPropagation(); });
 grid.addEventListener("keydown", e => {
   if (e.key !== "Enter" && e.key !== " ") return;
-  const chip = e.target.closest(".chip[data-id]");
-  if (chip){ e.preventDefault(); e.stopPropagation(); removeLeave(chip); return; }
-  const cell = e.target.closest(".d[data-date]");
-  if (cell){ e.preventDefault(); openForm(cell.dataset.date); }
+  if (openFromEvent(e.target)){ e.preventDefault(); e.stopPropagation(); }
 });
+
 
 document.getElementById("prev").onclick = () => { cur.setMonth(cur.getMonth()-1); render(); };
 document.getElementById("next").onclick = () => { cur.setMonth(cur.getMonth()+1); render(); };
@@ -386,6 +449,7 @@ document.addEventListener("visibilitychange", () => {
   else { running = false; stopPoll(); }
 });
 
+paintSwatches();      // 폼이 접혀 있어도 미리 그려 둔다 (열 때 비어 보이지 않게)
 load();
 startPoll();
 
@@ -497,12 +561,63 @@ window.selftest = function selftest(){
   const cell = document.querySelector(".d[data-date]");
   ok(!!cell && cell.getAttribute("tabindex") === "0" && cell.getAttribute("role") === "button",
      "날짜 칸이 키보드로 도달·조작 가능");
-  ok(!chip || chip.tagName === "BUTTON", "삭제 칩이 실제 button 요소");
-  ok(!chip || !!chip.getAttribute("aria-label"), "삭제 칩에 읽어줄 이름이 있음");
+  ok(!chip || chip.tagName === "BUTTON", "칩이 실제 button 요소");
+  ok(!chip || /수정$/.test(chip.getAttribute("aria-label") || ""), "칩에 '수정' 이라고 읽어줌");
 
   /* 칩 레이아웃 */
   const chips = [...document.querySelectorAll("#grid .chip")];
   ok(!chips.length || chips.every(c => c.getBoundingClientRect().height <= 26), "칩이 두 줄로 접히지 않음");
+
+  /* 헤더 레이아웃 — 폭에 따라 자리가 흔들리지 않아야 한다 */
+  (() => {
+    const head = document.querySelector(".head");
+    const hcs = getComputedStyle(head);
+    const tracks = hcs.gridTemplateColumns.split(" ").filter(Boolean).length;
+    ok(hcs.display === "grid", "헤더가 grid (예전 flex+wrap 은 폭마다 줄바꿈이 달라졌다)");
+    ok(innerWidth > 1080 ? tracks === 3 : tracks === 1,
+       `현재 폭 ${innerWidth}px → ${tracks}열 배치`);
+    const fs = parseFloat(getComputedStyle(document.querySelector("h1")).fontSize);
+    ok([84, 68, 56].includes(Math.round(fs)), `월 표시 크기가 단계값 (${Math.round(fs)}px)`);
+  })();
+
+  /* 수정 모드 · 색 선택 */
+  (() => {
+    const sw = [...document.querySelectorAll("#f-sw button")];
+    ok(sw.length === HUES.length + 1, `색 스와치 ${sw.length}개 (자동 + 팔레트 ${HUES.length})`);
+    ok(sw.filter(b => b.getAttribute("aria-pressed") === "true").length === 1, "선택된 색이 항상 하나");
+    ok(sw[0].dataset.ci === "" && sw[0].textContent === "자동", "첫 칸은 자동");
+
+    const keep = leaves, keepLive = live, keepCur = new Date(cur);
+    const d0 = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+    const wd = (() => { const x = new Date(d0); while (isOff(x)) x.setDate(x.getDate()+1); return iso(x); })();
+    cur = d0;
+    leaves = [{ id:"e1", name:"수정테스트", start:wd, end:wd, note:"메모", ci:5 }];
+    live = false; render();
+
+    const chip = document.querySelector('#grid .chip[data-id="e1"]');
+    ok(!!chip, "검사용 칩 렌더");
+    const want = shades(HUES[5]).cb;
+    ok(chip && chip.style.getPropertyValue("--cb") === want, `저장된 색 인덱스가 칩에 반영 (ci=5)`);
+
+    chip.click();
+    ok(document.getElementById("add").classList.contains("on"), "칩을 누르면 폼이 열린다");
+    ok(document.getElementById("add").classList.contains("editing"), "수정 모드로 열린다");
+    ok(F("save").textContent === "수정", "버튼이 '수정' 으로 바뀐다");
+    ok(F("name").value === "수정테스트" && F("from").value === wd && F("note").value === "메모",
+       "기존 내용이 폼에 채워진다");
+    ok([...document.querySelectorAll("#f-sw button")][6].getAttribute("aria-pressed") === "true",
+       "저장된 색이 스와치에 선택된 상태로 들어온다");
+    ok(getComputedStyle(F("del")).display !== "none", "수정 모드에선 삭제 버튼이 보인다");
+
+    closeForm();
+    ok(!document.getElementById("add").classList.contains("editing"), "닫으면 수정 모드 해제");
+    openForm(wd);
+    ok(F("save").textContent === "등록" && getComputedStyle(F("del")).display === "none",
+       "등록 모드에선 삭제 버튼이 숨는다");
+    closeForm();
+
+    leaves = keep; live = keepLive; cur = keepCur; render();
+  })();
 
   /* 배경 */
   ok(cols > 1 && rows > 1 && sizes.length === cols * rows, `배경 격자 ${cols}×${rows}`);
@@ -518,6 +633,17 @@ window.selftest = function selftest(){
   ok(typeof poll === "number" || poll === null, "폴링 핸들 관리됨");
   ok(LOCAL || true, "배포 환경에서는 API 실패 시 예시 데이터를 쓰지 않음 (load() 분기)");
 
+  /* 칸 폭이 균일해야 한다. 1fr 은 min-content 를 존중하므로 nowrap 칩이 든 칸만
+     넓어지고, 좁은 화면에서 격자가 화면을 넘어 가로 스크롤이 생겼다 → minmax(0,1fr) */
+  (() => {
+    const ws = [...document.querySelectorAll("#grid .d")].map(e => Math.round(e.getBoundingClientRect().width));
+    ok(new Set(ws).size === 1, `칸 폭이 전부 같음 (${[...new Set(ws)].join("/")}px)`);
+    ok(getComputedStyle(document.getElementById("grid")).gridTemplateColumns.split(" ").length === 7,
+       "격자가 7열");
+  })();
+  ok(document.querySelector("h1").style.length >= 0
+     && parseFloat(getComputedStyle(document.querySelector("h1")).webkitTextStrokeWidth) > 1,
+     "월 표시에 외곽선 두께 적용 (Jua 는 400 하나뿐이라 스트로크로 굵힌다)");
   ok(document.body.scrollWidth <= document.body.clientWidth + 1, "가로 스크롤 없음");
   return out.join("\n");
 };

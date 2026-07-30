@@ -3,7 +3,8 @@ import { getStore } from "@netlify/blobs";
 /* 일정 목록 API — 사이트가 저장소다. 시트·외부 서비스 없음.
    GET    /api/leaves          목록
    GET    /api/leaves?trash=1  삭제된 것(툼스톤) 목록 — 복구용
-   POST   /api/leaves          { name, start, end?, note? } 추가
+   POST   /api/leaves          { name, start, end?, note?, ci? } 추가
+   PUT    /api/leaves?id=...   같은 id 로 내용 수정
    DELETE /api/leaves?id=...   삭제 (지우지 않고 trash/ 로 옮긴다)
 
    ── 왜 레코드마다 blob 을 따로 쓰는가
@@ -24,6 +25,7 @@ const STORE = "vacation";
 const MAX = 500;                 // 이 이상은 읽기 비용이 커진다(목록 조회가 레코드 수만큼 get 을 낸다)
 const RATE_LIMIT = 20;           // 분당 쓰기 허용 횟수 (같은 IP)
 const YEAR_MIN = 2020, YEAR_MAX = 2100;
+const PALETTE_SIZE = 12;         // 화면 팔레트 길이와 맞춘다 (app.js HUES)
 
 const isDate = s => {
   if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -36,7 +38,7 @@ const isDate = s => {
 /* 신뢰 경계 — 클라이언트가 보낸 값은 전부 여기서 다시 검사한다.
    제어문자를 걸러 두면 저장된 값이 화면에서 이상하게 깨지는 것도 막는다.
    태그 문자열 자체는 막지 않는다(사람 이름에 쓸 수도 있으니) — 출력 이스케이프가 담당한다. */
-function clean(b){
+function clean(b, keepId){
   if (!b || typeof b !== "object") return null;
   const strip = v => String(v ?? "")
     .replace(/[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\uFEFF]/g, "")
@@ -49,7 +51,16 @@ function clean(b){
   if (!isDate(start) || !isDate(end)) return null;
   if (end < start) return null;                                   // ISO 문자열은 사전순=시간순
   if (new Date(end) - new Date(start) > 366 * 864e5) return null;  // 1년 넘는 건은 오타
-  return { id: crypto.randomUUID(), name, start, end, note };
+
+  /* 색은 팔레트 인덱스로만 받는다 — hex 를 그대로 받으면 검증할 게 늘고 출력에도 새어든다.
+     없으면 화면이 이름 순번으로 자동 배정한다. */
+  let ci = b.ci;
+  if (ci === "" || ci === null || ci === undefined) ci = null;
+  else {
+    ci = Number(ci);
+    if (!Number.isInteger(ci) || ci < 0 || ci >= PALETTE_SIZE) return null;
+  }
+  return { id: keepId || crypto.randomUUID(), name, start, end, note, ci };
 }
 
 const json = (data, status = 200) =>
@@ -58,7 +69,7 @@ const json = (data, status = 200) =>
     headers: {
       "content-type": "application/json",
       "cache-control": "no-store",
-      "x-api": "v3"                 // 쓰기 없이 배포 버전을 확인하는 표식
+      "x-api": "v4"                 // 쓰기 없이 배포 버전을 확인하는 표식
     }
   });
 
@@ -120,6 +131,28 @@ export default async (req) => {
 
     await store.setJSON(LIVE + rec.id, rec);      // 읽기-수정-쓰기 없음 → 덮어쓰기 불가
     return json(rec, 201);
+  }
+
+  if (req.method === "PUT"){
+    if (denied(req)) return json({ error: "암호가 맞지 않습니다." }, 401);
+    if (!(req.headers.get("content-type") || "").includes("application/json"))
+      return json({ error: "content-type 은 application/json 이어야 합니다." }, 415);
+    if (await rateLimited(store, req))
+      return json({ error: "잠시 후 다시 시도해 주세요." }, 429);
+
+    const id = url.searchParams.get("id");
+    if (!id || !/^[A-Za-z0-9_-]{6,64}$/.test(id))
+      return json({ error: "id 가 올바르지 않습니다." }, 400);
+    if (!await store.get(LIVE + id, { type: "json" }).catch(() => null))
+      return json({ error: "없는 항목입니다." }, 404);
+
+    let body;
+    try { body = await req.json(); } catch { return json({ error: "형식 오류" }, 400); }
+    const rec = clean(body, id);                  // id 를 유지한 채 내용만 바꾼다
+    if (!rec) return json({ error: "입력값을 확인하세요." }, 400);
+
+    await store.setJSON(LIVE + id, rec);
+    return json(rec);
   }
 
   if (req.method === "DELETE"){

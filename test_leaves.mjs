@@ -40,5 +40,18 @@ ok(isDate("2020-01-01") && isDate("2100-12-31"), "허용 범위 경계 통과");
 // 태그 문자열은 저장을 막지 않는다 — 사람 이름에 쓸 수도 있고, 방어는 출력 이스케이프가 한다
 ok(clean({name:"<b>홍길동</b>",start:"2026-08-01"})?.name === "<b>홍길동</b>", "태그 문자는 그대로 저장");
 
+// 색 인덱스 (팔레트 인덱스만 받는다 — hex 를 받으면 검증 부담과 출력 노출이 늘어난다)
+ok(clean({name:"A",start:"2026-08-01"}).ci === null, "색 생략하면 자동(null)");
+ok(clean({name:"A",start:"2026-08-01",ci:0}).ci === 0, "색 인덱스 0 허용");
+ok(clean({name:"A",start:"2026-08-01",ci:11}).ci === 11, "색 인덱스 11 허용");
+ok(clean({name:"A",start:"2026-08-01",ci:"3"}).ci === 3, "문자열 숫자도 정수로 받음");
+ok(clean({name:"A",start:"2026-08-01",ci:12}) === null, "팔레트 범위 초과 거부");
+ok(clean({name:"A",start:"2026-08-01",ci:-1}) === null, "음수 색 인덱스 거부");
+ok(clean({name:"A",start:"2026-08-01",ci:1.5}) === null, "정수 아닌 색 인덱스 거부");
+ok(clean({name:"A",start:"2026-08-01",ci:"#fff"}) === null, "hex 는 거부");
+
+// 수정(PUT)은 id 를 유지해야 한다
+ok(clean({name:"A",start:"2026-08-01"}, "keep-me-1234").id === "keep-me-1234", "id 유지 옵션 동작");
+
 console.log(bad ? `\n${bad}건 실패` : "\n전부 통과");
 process.exit(bad ? 1 : 0);
